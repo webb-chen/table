@@ -1,0 +1,42 @@
+{
+  "cSpell.words": [
+    "antlr",
+    "AUTOINCREMENT",
+    "COUNTALL",
+    "DATETIME",
+    "gantt",
+    "ILIKE",
+    "Localstorage",
+    "minio",
+    "nextjs",
+    "nonstrict",
+    "OPENAI",
+    "openapi",
+    "shadcn",
+    "sharedb",
+    "signin",
+    "signout",
+    "sonarjs",
+    "sonner",
+    "teable",
+    "testid",
+    "topo",
+    "trgm",
+    "umami",
+    "univer",
+    "webb",
+    "chen",
+    "zustand"
+  ],
+  "editor.defaultFormatter": "oxc.oxc-vscode",
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll.oxc": "explicit"
+  },
+  "vitest.maximumConfigs": 50,
+  "vitest.nodeEnv": {
+    "DOCKER_HOST": "unix:///Users/nichenqin/.colima/default/docker.sock",
+    "TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE": "/var/run/docker.sock",
+    "TESTCONTAINERS_HOST_OVERRIDE": "127.0.0.1"
+  }
+}

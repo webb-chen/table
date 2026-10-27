@@ -1,0 +1,36 @@
+import { createContext } from 'react';
+
+export interface IFileItemBase {
+  name: string;
+  src: string;
+  mimetype: string;
+  size?: number;
+  thumb?: string;
+  downloadUrl?: string;
+  /** Deletes the underlying file. The preview shows a delete action only when provided. */
+  onDelete?: () => void;
+}
+
+export type IFileId = number | string;
+
+export interface IFileItemInner extends IFileItemBase {
+  fileId: IFileId;
+  onClose?: () => void;
+}
+
+export interface IFileItem extends IFileItemBase {
+  fileId?: IFileId;
+}
+
+export const FilePreviewContext = createContext<{
+  currentFile?: IFileItemInner;
+  files: IFileItemInner[];
+  mergeFiles: (fileItem: IFileItemInner) => void;
+  resetFiles: (files?: IFileItemInner[]) => void;
+  openPreview: (fileId?: IFileId) => void;
+  closePreview: () => void;
+  onPrev: () => void;
+  onNext: () => void;
+  removeFile: (fileId: IFileId) => void;
+  i18nMap?: Record<string, string>;
+}>(null!);

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json.schemastore.org/nest-cli",
+  "collection": "@nestjs/schematics",
+  "sourceRoot": "src",
+  "entryFile": "index",
+  "flat": true,
+  "compilerOptions": {
+    "builder": {
+      "type": "rspack",
+      "options": {
+        "configPath": "./rspack.config.js"
+      }
+    }
+  }
+}

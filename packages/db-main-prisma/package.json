@@ -1,0 +1,91 @@
+{
+  "name": "@teable/db-main-prisma",
+  "version": "1.10.0",
+  "license": "MIT",
+  "homepage": "https://github.com/webb-chen/table",
+  "private": true,
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/webb-chen/table",
+    "directory": "packages/db-main-prisma"
+  },
+  "author": {
+    "name": "明英科技 (MINGYINGKEJI)",
+    "url": "https://github.com/webb-chen/table"
+  },
+  "sideEffects": false,
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "@teable/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "prisma"
+  ],
+  "scripts": {
+    "build": "pnpm prisma-generate-ci && tsc",
+    "clean": "rimraf ./dist ./coverage ./tsconfig.tsbuildinfo ./node_modules/.cache",
+    "dev": "tsc --watch",
+    "fix-all-files": "oxlint --fix && oxfmt",
+    "lint": "oxlint && oxfmt --check",
+    "prisma-generate": "node ./scripts/run-prisma-command.mjs generate --schema ./prisma/postgres/schema.prisma",
+    "prisma-generate-ci": "node ../../scripts/prisma-generate-ci.mjs ./prisma/postgres/schema.prisma",
+    "prisma-migrate": "dotenv-flow -p ../../apps/nextjs-app -- node ./scripts/run-prisma-command.mjs migrate",
+    "prisma-migrate-reset": "dotenv-flow -p ../../apps/nextjs-app -- node ./scripts/run-prisma-command.mjs migrate reset",
+    "prisma-db-push": "dotenv-flow -p ../../apps/nextjs-app -- node ./scripts/run-prisma-command.mjs db push",
+    "prisma-db-seed": "dotenv-flow -p ../../apps/nextjs-app -- node ./scripts/run-prisma-command.mjs db seed",
+    "prisma-studio": "dotenv-flow -p ../../apps/nextjs-app -- node ./scripts/run-prisma-command.mjs studio",
+    "test": "run-s test-unit",
+    "test-unit": "echo \"No unit tests yet\"",
+    "test-e2e": "echo \"No e2e tests yet\"",
+    "typecheck": "tsc --project ./tsconfig.json --noEmit"
+  },
+  "peerDependencies": {
+    "@prisma/client": "^5.0.0",
+    "@nestjs/common": "^12.0.0",
+    "nestjs-cls": "^6.0.0"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "6.2.1",
+    "@prisma/client": "6.2.1",
+    "prisma": "6.2.1",
+    "nanoid": "6.0.2",
+    "pg": "8.11.5"
+  },
+  "devDependencies": {
+    "@httpx/dsn-parser": "1.8.4",
+    "@faker-js/faker": "10.6.0",
+    "@teable/eslint-config-bases": "workspace:^",
+    "@types/node": "24.13.2",
+    "@types/pg": "8.16.0",
+    "@types/bcrypt": "6.0.0",
+    "camelcase": "8.0.0",
+    "cross-env": "7.0.3",
+    "dotenv-flow-cli": "1.1.1",
+    "handlebars": "4.7.10",
+    "is-port-reachable": "3.1.0",
+    "mustache": "4.2.0",
+    "npm-run-all2": "6.1.2",
+    "oxfmt": "0.74.0",
+    "oxlint": "1.89.0",
+    "picocolors": "1.0.0",
+    "rimraf": "5.0.5",
+    "tsx": "4.23.15",
+    "rxjs": "7.8.1",
+    "typescript": "catalog:",
+    "bcrypt": "6.0.0"
+  },
+  "prisma": {
+    "seed": "tsx ./prisma/seed.ts"
+  }
+}

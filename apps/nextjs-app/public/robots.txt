@@ -1,0 +1,5 @@
+# Robots.txt for 明英科技 (MINGYINGKEJI)
+# App pages are private product routes; there is no /public page.
+
+User-agent: *
+Disallow: /

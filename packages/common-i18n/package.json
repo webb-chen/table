@@ -1,0 +1,45 @@
+{
+  "name": "@teable/common-i18n",
+  "version": "1.10.0",
+  "license": "MIT",
+  "homepage": "https://github.com/webb-chen/table",
+  "private": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/webb-chen/table",
+    "directory": "packages/common-i18n"
+  },
+  "author": {
+    "name": "明英科技 (MINGYINGKEJI)",
+    "url": "https://github.com/webb-chen/table"
+  },
+  "sideEffects": false,
+  "type": "module",
+  "types": "./src/index.ts",
+  "files": [
+    "src"
+  ],
+  "exports": {
+    "./src/locales/*": {
+      "require": "./src/locales/*",
+      "import": "./src/locales/*"
+    }
+  },
+  "scripts": {
+    "clean": "rimraf ./dist ./coverage ./tsconfig.tsbuildinfo",
+    "lint": "oxlint && oxfmt --check",
+    "typecheck": "tsc --project ./tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@teable/eslint-config-bases": "workspace:^",
+    "@types/node": "24.13.2",
+    "cross-env": "7.0.3",
+    "oxfmt": "0.74.0",
+    "oxlint": "1.89.0",
+    "rimraf": "5.0.5",
+    "typescript": "catalog:"
+  }
+}

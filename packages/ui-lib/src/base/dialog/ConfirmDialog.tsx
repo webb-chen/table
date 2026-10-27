@@ -1,0 +1,99 @@
+import React from 'react';
+import {
+  Button,
+  type ButtonProps,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '../../shadcn';
+import { Spin } from '../spin/Spin';
+
+interface IConfirmDialogProps {
+  open?: boolean;
+  contentClassName?: string;
+  title?: string | React.ReactNode;
+  description?: string | React.ReactNode;
+  closeable?: boolean;
+  children?: React.ReactNode;
+  content?: React.ReactNode;
+  cancelText?: string;
+  confirmText?: string;
+  confirmLoading?: boolean;
+  confirmDisabled?: boolean;
+  confirmButtonVariant?: ButtonProps['variant'];
+  onConfirm?: () => void | Promise<void>;
+  onCancel?: () => void | Promise<void>;
+  onOpenChange?: (open: boolean) => void;
+  /**
+   * Where focus goes when the dialog closes. Radix gives it back to the trigger; a dialog
+   * opened from state has none, and focus falls to the page unless the caller places it.
+   */
+  onCloseAutoFocus?: (event: Event) => void;
+}
+export const ConfirmDialog = (props: IConfirmDialogProps) => {
+  const {
+    open,
+    contentClassName,
+    title,
+    description,
+    closeable,
+    onOpenChange,
+    children,
+    content,
+    cancelText,
+    confirmText,
+    confirmLoading,
+    confirmDisabled,
+    confirmButtonVariant,
+    onConfirm,
+    onCancel,
+    onCloseAutoFocus,
+  } = props;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      {children && <DialogTrigger asChild>{children}</DialogTrigger>}
+      <DialogContent
+        className={contentClassName}
+        closeable={closeable}
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onInteractOutside={(e) => e.preventDefault()}
+        onCloseAutoFocus={onCloseAutoFocus}
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {(title || description) && (
+          <DialogHeader>
+            {title && <DialogTitle>{title}</DialogTitle>}
+            {description && <DialogDescription>{description}</DialogDescription>}
+          </DialogHeader>
+        )}
+        {content}
+        {(cancelText || confirmText) && (
+          <DialogFooter>
+            {cancelText && (
+              <Button size={'sm'} variant={'ghost'} onClick={onCancel}>
+                {cancelText}
+              </Button>
+            )}
+            {confirmText && (
+              <Button
+                size={'sm'}
+                variant={confirmButtonVariant}
+                onClick={onConfirm}
+                disabled={confirmDisabled}
+              >
+                {confirmLoading && <Spin />}
+                {confirmText}
+              </Button>
+            )}
+          </DialogFooter>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+};

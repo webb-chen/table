@@ -1,0 +1,807 @@
+import { LRUCache } from 'lru-cache';
+import { resolveContentDirection } from '../../../../utils/text-direction';
+import { parseToRGB } from '../../utils';
+import type {
+  ILineProps,
+  IMultiLineTextProps,
+  IRectProps,
+  IRoundPolyProps,
+  ISingleLineTextProps,
+  IVector,
+  IPoint,
+  ICheckboxProps,
+  IRingProps,
+  IProcessBarProps,
+  IChartLineProps,
+  IChartBarProps,
+  ITextInfo,
+  IAvatarProps,
+} from './interface';
+
+const singleLineTextInfoCache: LRUCache<string, { text: string; width: number }> = new LRUCache({
+  max: 1000,
+});
+
+const multiLineTextInfoCache: LRUCache<string, ITextInfo[]> = new LRUCache({ max: 1000 });
+
+export const TEXT_ELLIPSIS = '...';
+
+const createFallbackSegmenter = () => ({
+  segment: (text: string) => ({
+    [Symbol.iterator]: function* () {
+      for (let i = 0; i < text.length; i++) {
+        yield { segment: text[i], index: i, input: text };
+      }
+    },
+  }),
+});
+
+const hasSegmenter = typeof Intl !== 'undefined' && typeof Intl.Segmenter === 'function';
+const wordSegmenter = hasSegmenter
+  ? new Intl.Segmenter(undefined, { granularity: 'word' })
+  : createFallbackSegmenter();
+const graphemeSegmenter = hasSegmenter
+  ? new Intl.Segmenter(undefined, { granularity: 'grapheme' })
+  : createFallbackSegmenter();
+
+// Longest prefix of text (word-bounded, then grapheme-bounded within the
+// overflowing word) whose measured width stays within budget
+const truncateToBudget = (ctx: CanvasRenderingContext2D, text: string, budget: number) => {
+  let keptText = '';
+  let keptWidth = 0;
+
+  for (const { segment } of wordSegmenter.segment(text)) {
+    const segWidth = ctx.measureText(segment).width;
+    if (keptWidth + segWidth > budget) {
+      for (const { segment: grapheme } of graphemeSegmenter.segment(segment)) {
+        const gWidth = ctx.measureText(grapheme).width;
+        if (keptWidth + gWidth > budget) break;
+        keptText += grapheme;
+        keptWidth += gWidth;
+      }
+      break;
+    }
+    keptText += segment;
+    keptWidth += segWidth;
+  }
+
+  return { text: keptText, width: keptWidth };
+};
+
+/**
+ * Base direction to draw `text` with, or `null` to leave the canvas direction
+ * untouched. Detection is skipped entirely while the language gate is off, so
+ * every other locale keeps running the exact code path it ran before.
+ */
+// eslint-disable-next-line sonarjs/cognitive-complexity
+export const drawMultiLineText = (ctx: CanvasRenderingContext2D, props: IMultiLineTextProps) => {
+  const {
+    x = 0,
+    y = 0,
+    text,
+    maxWidth,
+    maxLines,
+    isUnderline,
+    fontSize = 13,
+    lineHeight = 22,
+    fill = 'black',
+    textAlign = 'left',
+    verticalAlign = 'middle',
+    needRender = true,
+  } = props;
+
+  let lines: ITextInfo[] = [];
+  const ellipsis = TEXT_ELLIPSIS;
+  const ellipsisWidth = ctx.measureText(ellipsis).width;
+  let currentLine = '';
+  let currentLineWidth = 0;
+  // Source offset where currentLine begins; every emitted line is a verbatim
+  // slice of text starting there (plus the ellipsis when truncated)
+  let lineStart = 0;
+
+  const fontKey = ctx.font || '';
+  const cacheKey = `${fontKey}-${text}-${fontSize}-${maxWidth}-${maxLines}`;
+  const cachedLines = multiLineTextInfoCache.get(cacheKey);
+
+  if (cachedLines) {
+    lines = cachedLines;
+  } else {
+    let consumed = 0;
+
+    const pushLine = (lineText: string, lineWidth: number) => {
+      lines.push({ text: lineText, width: lineWidth, start: lineStart });
+    };
+
+    const append = (piece: string, pieceWidth: number, pieceStart: number) => {
+      if (currentLine === '') lineStart = pieceStart;
+      currentLine += piece;
+      currentLineWidth += pieceWidth;
+    };
+
+    const addEllipsisLine = (overflowSeg?: string, overflowStart = 0) => {
+      const budget = maxWidth - ellipsisWidth;
+      if (currentLineWidth > budget) {
+        const truncated = truncateToBudget(ctx, currentLine, budget);
+        currentLine = truncated.text;
+        currentLineWidth = truncated.width;
+      } else if (overflowSeg) {
+        let graphemeStart = overflowStart;
+        for (const { segment: grapheme } of graphemeSegmenter.segment(overflowSeg)) {
+          const gw = ctx.measureText(grapheme).width;
+          if (currentLineWidth + gw > budget) break;
+          append(grapheme, gw, graphemeStart);
+          graphemeStart += grapheme.length;
+        }
+      }
+      pushLine(currentLine + ellipsis, currentLineWidth + ellipsisWidth);
+      currentLine = '';
+      currentLineWidth = 0;
+    };
+
+    const addSegment = (seg: string, segWidth: number, segStart: number) => {
+      if (currentLineWidth + segWidth <= maxWidth) {
+        append(seg, segWidth, segStart);
+        return;
+      }
+      if (segWidth <= maxWidth) {
+        if (lines.length < maxLines - 1) {
+          pushLine(currentLine, currentLineWidth);
+          currentLine = '';
+          currentLineWidth = 0;
+          append(seg, segWidth, segStart);
+        } else {
+          addEllipsisLine(seg, segStart);
+        }
+        return;
+      }
+      let graphemeStart = segStart;
+      for (const { segment: grapheme } of graphemeSegmenter.segment(seg)) {
+        if (lines.length >= maxLines) break;
+        const gWidth = ctx.measureText(grapheme).width;
+        if (currentLineWidth + gWidth > maxWidth) {
+          if (lines.length < maxLines - 1) {
+            pushLine(currentLine, currentLineWidth);
+            currentLine = '';
+            currentLineWidth = 0;
+            append(grapheme, gWidth, graphemeStart);
+          } else {
+            addEllipsisLine();
+          }
+        } else {
+          append(grapheme, gWidth, graphemeStart);
+        }
+        graphemeStart += grapheme.length;
+      }
+    };
+
+    for (const { segment } of wordSegmenter.segment(text)) {
+      if (lines.length >= maxLines) break;
+
+      if (segment.includes('\n')) {
+        const parts = segment.split('\n');
+        for (let p = 0; p < parts.length; p++) {
+          if (lines.length >= maxLines) break;
+          if (p > 0) {
+            consumed++;
+            if (lines.length + 1 === maxLines && consumed < text.length) {
+              addEllipsisLine();
+              break;
+            }
+            pushLine(currentLine, currentLineWidth);
+            currentLine = '';
+            currentLineWidth = 0;
+            lineStart = consumed;
+          }
+          const part = parts[p];
+          if (part.length > 0) {
+            consumed += part.length;
+            addSegment(part, ctx.measureText(part).width, consumed - part.length);
+          }
+        }
+        continue;
+      }
+
+      consumed += segment.length;
+      addSegment(segment, ctx.measureText(segment).width, consumed - segment.length);
+    }
+
+    if (lines.length < maxLines && currentLine !== '') {
+      pushLine(currentLine, currentLineWidth);
+    }
+
+    multiLineTextInfoCache.set(cacheKey, lines);
+  }
+
+  const offsetY = verticalAlign === 'middle' ? fontSize / 2 : 0;
+
+  if (needRender) {
+    const contentDir = resolveContentDirection(text);
+    // Only the direction-agnostic default alignment follows the content; an
+    // explicit 'right'/'center' is a layout decision the caller already made.
+    const isAutoRtl = contentDir === 'rtl' && textAlign === 'left';
+    const finalX = isAutoRtl ? x + maxWidth : x;
+    // Reading and writing ctx.direction is a canvas-state round-trip on the
+    // grid's hot paint path, so it only happens when the content asks for it.
+    const prevDirection = contentDir != null ? ctx.direction : null;
+
+    if (fill) {
+      ctx.fillStyle = fill;
+      ctx.strokeStyle = fill;
+    }
+    if (contentDir != null) ctx.direction = contentDir;
+    ctx.textAlign = isAutoRtl ? 'right' : textAlign;
+    ctx.textBaseline = verticalAlign;
+
+    for (let j = 0; j < lines.length; j++) {
+      ctx.fillText(lines[j].text, finalX, y + j * lineHeight + offsetY);
+      if (isUnderline) {
+        const textWidth = ctx.measureText(lines[j].text).width;
+        // Right-anchored text grows leftwards from finalX.
+        const underlineStart = isAutoRtl ? finalX - textWidth : finalX;
+        ctx.beginPath();
+        ctx.moveTo(underlineStart, y + j * lineHeight + fontSize - 1);
+        ctx.lineTo(underlineStart + textWidth, y + j * lineHeight + fontSize - 1);
+        ctx.stroke();
+      }
+    }
+
+    if (prevDirection != null) ctx.direction = prevDirection;
+  }
+
+  return lines;
+};
+
+// eslint-disable-next-line sonarjs/cognitive-complexity
+export const drawSingleLineText = (ctx: CanvasRenderingContext2D, props: ISingleLineTextProps) => {
+  const {
+    x = 0,
+    y = 0,
+    text,
+    fill,
+    fontSize = 13,
+    textAlign = 'left',
+    verticalAlign = 'middle',
+    maxWidth = Infinity,
+    needRender = true,
+    isUnderline = false,
+  } = props;
+
+  let width = 0;
+  let displayText = '';
+
+  const cacheKey = `${text}-${fontSize}-${maxWidth}`;
+  const cachedTextInfo = singleLineTextInfoCache.get(cacheKey);
+
+  if (cachedTextInfo) {
+    width = cachedTextInfo.width;
+    displayText = cachedTextInfo.text;
+  } else {
+    const fullWidth = ctx.measureText(text).width;
+
+    if (fullWidth <= maxWidth) {
+      displayText = text;
+      width = fullWidth;
+    } else {
+      const ellipsis = TEXT_ELLIPSIS;
+      const ellipsisWidth = ctx.measureText(ellipsis).width;
+      // Reserve the ellipsis width up front so that the rendered text and the
+      // returned width stay within maxWidth (as long as maxWidth fits at
+      // least the ellipsis itself)
+      const truncated = truncateToBudget(ctx, text, maxWidth - ellipsisWidth);
+
+      // Logical order: the bidi algorithm places the ellipsis at the reading
+      // end of the run, which is the visual left for RTL content.
+      displayText = truncated.text + ellipsis;
+      width = truncated.width + ellipsisWidth;
+    }
+
+    singleLineTextInfoCache.set(cacheKey, { text: displayText, width });
+  }
+
+  if (needRender) {
+    const contentDir = resolveContentDirection(text);
+    // Only the direction-agnostic default alignment follows the content; an
+    // explicit 'right'/'center' is a layout decision the caller already made.
+    // An unbounded maxWidth gives nothing to anchor against, so it stays as is.
+    const isAutoRtl = contentDir === 'rtl' && textAlign === 'left' && maxWidth !== Infinity;
+    const resolvedAlign = isAutoRtl ? 'right' : textAlign;
+    const offsetY = verticalAlign === 'middle' ? fontSize / 2 : 0;
+    const finalX = resolvedAlign === 'right' ? x + maxWidth : x;
+    // Reading and writing ctx.direction is a canvas-state round-trip on the
+    // grid's hot paint path, so it only happens when the content asks for it.
+    const prevDirection = contentDir != null ? ctx.direction : null;
+
+    if (fill) {
+      ctx.fillStyle = fill;
+      ctx.strokeStyle = fill;
+    }
+    if (contentDir != null) ctx.direction = contentDir;
+    ctx.textAlign = resolvedAlign;
+    ctx.textBaseline = verticalAlign;
+    ctx.fillText(displayText, finalX, y + offsetY);
+    if (isUnderline) {
+      // Right-anchored text grows leftwards from finalX. Corrected only for the
+      // content-driven case so existing right-aligned callers keep their geometry.
+      const underlineStart = isAutoRtl ? finalX - width : finalX;
+      ctx.beginPath();
+      ctx.moveTo(underlineStart, y + offsetY + fontSize / 2 - 1);
+      ctx.lineTo(underlineStart + width, y + offsetY + fontSize / 2 - 1);
+      ctx.stroke();
+    }
+
+    if (prevDirection != null) ctx.direction = prevDirection;
+  }
+
+  return {
+    text: displayText,
+    width,
+  };
+};
+
+export const drawLine = (ctx: CanvasRenderingContext2D, props: ILineProps) => {
+  const { x, y, points, stroke, lineWidth = 1, closed = false } = props;
+  const length = points.length;
+
+  ctx.save();
+  ctx.beginPath();
+  if (stroke) ctx.strokeStyle = stroke;
+  ctx.lineWidth = lineWidth;
+  ctx.lineJoin = 'round';
+  ctx.translate(x, y);
+  ctx.moveTo(points[0], points[1]);
+
+  for (let n = 2; n < length; n += 2) {
+    ctx.lineTo(points[n], points[n + 1]);
+  }
+
+  if (closed) {
+    ctx.closePath();
+  }
+  ctx.stroke();
+  ctx.restore();
+};
+
+export const drawRect = (ctx: CanvasRenderingContext2D, props: IRectProps) => {
+  const { x, y, width, height, fill, stroke, radius: _radius, opacity } = props;
+
+  ctx.beginPath();
+  if (fill) ctx.fillStyle = fill;
+  if (stroke) ctx.strokeStyle = stroke;
+  if (opacity) ctx.globalAlpha = opacity;
+
+  if (_radius == null) {
+    ctx.rect(x, y, width, height);
+  } else {
+    const radius =
+      typeof _radius === 'number'
+        ? { tl: _radius, tr: _radius, br: _radius, bl: _radius }
+        : {
+            tl: Math.min(_radius.tl, height / 2, width / 2),
+            tr: Math.min(_radius.tr, height / 2, width / 2),
+            bl: Math.min(_radius.bl, height / 2, width / 2),
+            br: Math.min(_radius.br, height / 2, width / 2),
+          };
+
+    ctx.moveTo(x + radius.tl, y);
+    ctx.arcTo(x + width, y, x + width, y + radius.tr, radius.tr);
+    ctx.arcTo(x + width, y + height, x + width - radius.br, y + height, radius.br);
+    ctx.arcTo(x, y + height, x, y + height - radius.bl, radius.bl);
+    ctx.arcTo(x, y, x + radius.tl, y, radius.tl);
+  }
+  ctx.closePath();
+
+  if (fill) ctx.fill();
+  if (stroke) ctx.stroke();
+};
+
+// eslint-disable-next-line sonarjs/cognitive-complexity
+export const drawRoundPoly = (ctx: CanvasRenderingContext2D, props: IRoundPolyProps) => {
+  const { points, radiusAll, fill, stroke } = props;
+  const asVec = function (p: IPoint, pp: IPoint): IVector {
+    const vx = pp.x - p.x;
+    const vy = pp.y - p.y;
+    const vlen = Math.sqrt(vx * vx + vy * vy);
+    const vnx = vx / vlen;
+    const vny = vy / vlen;
+    return {
+      x: vx,
+      y: pp.y - p.y,
+      len: vlen,
+      nx: vnx,
+      ny: vny,
+      ang: Math.atan2(vny, vnx),
+    };
+  };
+  let radius: number;
+  const len = points.length;
+  let p1 = points[len - 1];
+
+  ctx.beginPath();
+  if (fill) ctx.fillStyle = fill;
+  if (stroke) ctx.strokeStyle = stroke;
+  for (let i = 0; i < len; i++) {
+    let p2 = points[i % len];
+    const p3 = points[(i + 1) % len];
+
+    const v1 = asVec(p2, p1);
+    const v2 = asVec(p2, p3);
+    const sinA = v1.nx * v2.ny - v1.ny * v2.nx;
+    const sinA90 = v1.nx * v2.nx - v1.ny * -v2.ny;
+    let angle = Math.asin(Math.min(Math.max(sinA, -1), 1));
+    let radDirection = 1;
+    let drawDirection = false;
+    if (sinA90 < 0) {
+      if (angle < 0) {
+        angle = Math.PI + angle;
+      } else {
+        angle = Math.PI - angle;
+        radDirection = -1;
+        drawDirection = true;
+      }
+    } else if (angle > 0) {
+      radDirection = -1;
+      drawDirection = true;
+    }
+    radius = p2.radius !== undefined ? p2.radius : radiusAll;
+
+    const halfAngle = angle / 2;
+
+    let lenOut = Math.abs((Math.cos(halfAngle) * radius) / Math.sin(halfAngle));
+
+    let cRadius: number;
+    if (lenOut > Math.min(v1.len / 2, v2.len / 2)) {
+      lenOut = Math.min(v1.len / 2, v2.len / 2);
+      cRadius = Math.abs((lenOut * Math.sin(halfAngle)) / Math.cos(halfAngle));
+    } else {
+      cRadius = radius;
+    }
+
+    let x = p2.x + v2.nx * lenOut;
+    let y = p2.y + v2.ny * lenOut;
+
+    x += -v2.ny * cRadius * radDirection;
+    y += v2.nx * cRadius * radDirection;
+
+    ctx.arc(
+      x,
+      y,
+      cRadius,
+      v1.ang + (Math.PI / 2) * radDirection,
+      v2.ang - (Math.PI / 2) * radDirection,
+      drawDirection
+    );
+
+    p1 = p2;
+    p2 = p3;
+  }
+  ctx.closePath();
+  if (fill) ctx.fill();
+  if (stroke) ctx.stroke();
+};
+
+export const drawCheckbox = (ctx: CanvasRenderingContext2D, props: ICheckboxProps) => {
+  const { x, y, size, radius = 4, fill, stroke, isChecked = false } = props;
+  const dynamicSize = isChecked ? size : size - 1;
+
+  ctx.beginPath();
+  drawRect(ctx, {
+    x,
+    y,
+    width: dynamicSize,
+    height: dynamicSize,
+    radius,
+    fill,
+    stroke,
+  });
+
+  if (stroke) ctx.strokeStyle = stroke;
+  if (isChecked) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(x + size / 4.23, y + size / 1.97);
+    ctx.lineTo(x + size / 2.42, y + size / 1.44);
+    ctx.lineTo(x + size / 1.29, y + size / 3.25);
+
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.lineWidth = 1.9;
+    ctx.stroke();
+    ctx.restore();
+  }
+};
+
+export const drawRing = (ctx: CanvasRenderingContext2D, props: IRingProps) => {
+  const { x, y, radius, lineWidth = 5, value, maxValue, color } = props;
+  const startAngle = -Math.PI / 2;
+  const angle = value > maxValue ? 2 * Math.PI : (value / maxValue) * 2 * Math.PI;
+
+  ctx.save();
+
+  ctx.lineWidth = lineWidth;
+  ctx.strokeStyle = color;
+  ctx.globalAlpha = 0.2;
+
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, 2 * Math.PI);
+  ctx.stroke();
+
+  ctx.strokeStyle = color;
+  ctx.globalAlpha = 1;
+  ctx.beginPath();
+  ctx.arc(x, y, radius, startAngle, angle + startAngle);
+  ctx.stroke();
+
+  ctx.restore();
+};
+
+export const drawProcessBar = (ctx: CanvasRenderingContext2D, props: IProcessBarProps) => {
+  const { x, y, width, height, radius = 4, value, maxValue, color } = props;
+  const progressWidth = value > maxValue ? width : (value / maxValue) * width;
+
+  ctx.save();
+
+  ctx.fillStyle = color;
+  ctx.globalAlpha = 0.2;
+
+  ctx.beginPath();
+  drawRect(ctx, { x, y, width, height, radius });
+  ctx.fill();
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x, y, progressWidth, height);
+  ctx.clip();
+
+  ctx.fillStyle = color;
+  ctx.globalAlpha = 1;
+  drawRect(ctx, { x, y, width, height, radius });
+  ctx.fill();
+  ctx.restore();
+
+  ctx.restore();
+};
+
+export const drawChartLine = (ctx: CanvasRenderingContext2D, props: IChartLineProps) => {
+  const {
+    x,
+    y,
+    width,
+    height,
+    values,
+    displayValues = [],
+    color,
+    axisColor,
+    yAxis,
+    font,
+    hoverX,
+    hoverAmount = 0,
+  } = props;
+  const [minY, maxY] = yAxis ?? [Math.min(...values), Math.max(...values)];
+  const delta = maxY - minY === 0 ? 1 : maxY - minY;
+  const zeroY = maxY <= 0 ? y : minY >= 0 ? y + height : y + height * (maxY / delta);
+
+  let drawValues = values.map((d) => Math.min(1, Math.max(0, (d - minY) / delta)));
+
+  if (drawValues.length === 1) {
+    drawValues = [drawValues[0], drawValues[0]];
+  }
+
+  if (minY <= 0 && maxY >= 0) {
+    ctx.beginPath();
+    ctx.moveTo(x, zeroY);
+    ctx.lineTo(x + width, zeroY);
+
+    ctx.globalAlpha = 0.4;
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = axisColor;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  ctx.beginPath();
+
+  const xStep = width / (drawValues.length - 1);
+  const points = drawValues.map((val, index) => {
+    return {
+      x: x + xStep * index,
+      y: y + height - val * height,
+    };
+  });
+
+  if (points.length > 2) {
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let i = 0; i < points.length - 2; i++) {
+      const xControl = (points[i].x + points[i + 1].x) / 2;
+      const yControl = (points[i].y + points[i + 1].y) / 2;
+      ctx.quadraticCurveTo(points[i].x, points[i].y, xControl, yControl);
+    }
+    const curIndex = points.length - 2;
+    ctx.quadraticCurveTo(
+      points[curIndex].x,
+      points[curIndex].y,
+      points[curIndex + 1].x,
+      points[curIndex + 1].y
+    );
+  } else {
+    ctx.moveTo(points[0].x, points[0].y);
+    ctx.lineTo(points[1].x, points[1].y);
+  }
+
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1 + hoverAmount * 0.5;
+  ctx.stroke();
+
+  ctx.lineTo(x + width, zeroY);
+  ctx.lineTo(x, zeroY);
+  ctx.closePath();
+
+  ctx.globalAlpha = 0.2 + 0.2 * hoverAmount;
+  const grad = ctx.createLinearGradient(0, y, 0, y + height * 1.4);
+  grad.addColorStop(0, color);
+
+  const [r, g, b] = parseToRGB(color);
+  grad.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
+  ctx.fillStyle = grad;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  if (hoverX != null) {
+    ctx.beginPath();
+    const closest = Math.min(values.length - 1, Math.max(0, Math.round(hoverX / xStep)));
+    ctx.moveTo(x + closest * xStep, y);
+    ctx.lineTo(x + closest * xStep, y + height);
+
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = axisColor;
+    ctx.stroke();
+
+    ctx.save();
+    ctx.font = font;
+    drawSingleLineText(ctx, {
+      x,
+      y,
+      text: displayValues[closest] ?? values[closest],
+      fill: axisColor,
+    });
+    ctx.restore();
+  }
+};
+
+// eslint-disable-next-line sonarjs/cognitive-complexity
+export const drawChartBar = (ctx: CanvasRenderingContext2D, props: IChartBarProps) => {
+  const {
+    x,
+    y,
+    width,
+    height,
+    values,
+    displayValues = [],
+    color,
+    axisColor,
+    yAxis,
+    font,
+    hoverX,
+  } = props;
+
+  const barMaxWidth = 8;
+  const [originMinY, maxY] = yAxis ?? [Math.min(...values), Math.max(...values)];
+  const minY = Math.min(originMinY, 0);
+  const delta = maxY - minY === 0 ? 1 : maxY - minY;
+  const zeroY = maxY <= 0 ? y : minY >= 0 ? y + height : y + height * (maxY / delta);
+
+  const drawValues = values.map((d) => Math.min(1, Math.max(0, (d - minY) / delta)));
+
+  if (minY <= 0 && maxY >= 0) {
+    ctx.beginPath();
+    ctx.moveTo(x, zeroY);
+    ctx.lineTo(x + width, zeroY);
+
+    ctx.globalAlpha = 0.4;
+    ctx.lineWidth = 0.5;
+    ctx.strokeStyle = axisColor;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  ctx.beginPath();
+  const margin = 2;
+  const spacing = (drawValues.length - 1) * margin;
+  const barWidth = Math.min((width - spacing) / drawValues.length, barMaxWidth);
+
+  let drawX = x;
+  for (const val of drawValues) {
+    let barY = y + height - val * height;
+    barY = barY === zeroY ? zeroY - 0.5 : barY;
+    ctx.moveTo(drawX, zeroY);
+    ctx.lineTo(drawX + barWidth, zeroY);
+    ctx.lineTo(drawX + barWidth, barY);
+    ctx.lineTo(drawX, barY);
+
+    drawX += barWidth + margin;
+  }
+  ctx.fillStyle = color;
+  ctx.fill();
+
+  if (hoverX != null && hoverX >= 0) {
+    ctx.beginPath();
+    const xStep = Math.min(width / drawValues.length, barMaxWidth + margin);
+    const closest =
+      hoverX > drawX - x - margin
+        ? null
+        : Math.min(drawValues.length - 1, Math.max(0, Math.floor(hoverX / xStep)));
+
+    if (closest == null) return;
+
+    const finalHoverX = x + closest * xStep + (xStep - margin) / 2;
+    ctx.moveTo(finalHoverX, y);
+    ctx.lineTo(finalHoverX, y + height);
+
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = axisColor;
+    ctx.stroke();
+
+    ctx.save();
+    ctx.font = font;
+    drawSingleLineText(ctx, {
+      x,
+      y,
+      text: displayValues[closest] ?? values[closest],
+      fill: axisColor,
+    });
+    ctx.restore();
+  }
+};
+
+export const drawAvatar = (ctx: CanvasRenderingContext2D, props: IAvatarProps) => {
+  const {
+    x,
+    y,
+    width,
+    height,
+    fill,
+    stroke,
+    defaultText,
+    textColor,
+    img,
+    fontSize = 10,
+    fontFamily,
+  } = props;
+
+  ctx.save();
+  ctx.beginPath();
+
+  // wrapper stroke
+  if (stroke) ctx.strokeStyle = stroke;
+  ctx.arc(x + width / 2, y + height / 2, width / 2, 0, Math.PI * 2, false);
+
+  if (fill) ctx.fillStyle = fill;
+  if (fill) ctx.fill();
+  if (stroke) ctx.stroke();
+
+  if (img) {
+    ctx.clip();
+    ctx.drawImage(img, x, y, width, height);
+    if (stroke) ctx.stroke();
+    ctx.restore();
+    return;
+  }
+
+  const textAbb = defaultText.slice(0, 1);
+
+  ctx.beginPath();
+  if (textColor) ctx.fillStyle = textColor;
+  ctx.font = `${fontSize}px ${fontFamily}`;
+
+  drawSingleLineText(ctx, {
+    x: x + width / 2,
+    y: y + height / 2 - fontSize / 2,
+    text: textAbb,
+    textAlign: 'center',
+    fontSize: fontSize,
+  });
+
+  if (fill) ctx.fill();
+  if (stroke) ctx.stroke();
+
+  ctx.restore();
+};

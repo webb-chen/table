@@ -1,0 +1,28 @@
+// @ts-check
+
+/**
+ * This files overrides the base lint-staged.config.js present in the root directory.
+ * It allows to run oxlint based the package specific requirements.
+ * {@link https://github.com/okonet/lint-staged#how-to-use-lint-staged-in-a-multi-package-monorepo}
+ * {@link https://github.com/webb-chen/table/blob/main/docs/about-lint-staged.md}
+ */
+
+const { concatFilesForOxfmt, getOxcCmds } = require('../../lint-staged.common');
+
+/**
+ * @type {Record<string, (filenames: string[]) => string | string[] | Promise<string | string[]>>}
+ */
+const rules = {
+  '**/*.{js,jsx,ts,tsx}': (filenames) => {
+    return getOxcCmds({
+      cwd: __dirname,
+      maxWarnings: 25,
+      files: filenames,
+    });
+  },
+  '**/*.{json,md,mdx,css,html,yml,yaml,scss}': (filenames) => {
+    return [`oxfmt --no-error-on-unmatched-pattern ${concatFilesForOxfmt(filenames)}`];
+  },
+};
+
+module.exports = rules;

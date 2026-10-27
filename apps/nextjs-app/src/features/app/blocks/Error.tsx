@@ -1,0 +1,23 @@
+import type { FC } from 'react';
+import { TableLogo } from '@/components/TableLogo';
+import { useBrand } from '@/features/app/hooks/useBrand';
+
+const ErrorPage: FC<{ message: string }> = (props) => {
+  const { message } = props;
+  const { brandName } = useBrand();
+
+  return (
+    <div className="mer flex h-screen flex-col items-center justify-center">
+      <div>
+        <div className="flex w-full">
+          <TableLogo className="text-4xl" />
+          <p className="ms-1 truncate text-4xl font-semibold">{brandName}</p>
+        </div>
+        <h1 className="scroll-m-20 text-3xl tracking-tight">{message}</h1>
+      </div>
+    </div>
+  );
+};
+
+// Exported under the historical name; the declaration avoids shadowing the global Error.
+export { ErrorPage as Error };

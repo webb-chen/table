@@ -1,0 +1,84 @@
+{
+  "folders": [
+    {
+      "name": "nextjs-app",
+      "path": "apps/nextjs-app",
+    },
+    {
+      "name": "plugins",
+      "path": "plugins",
+    },
+    {
+      "name": "nestjs-backend",
+      "path": "apps/nestjs-backend",
+    },
+    {
+      "name": "common-i18n",
+      "path": "packages/common-i18n",
+    },
+    {
+      "name": "sdk",
+      "path": "packages/sdk",
+    },
+    {
+      "name": "core",
+      "path": "packages/core",
+    },
+    {
+      "name": "db-main-prisma",
+      "path": "packages/db-main-prisma",
+    },
+    {
+      "name": "eslint-config-bases",
+      "path": "packages/eslint-config-bases",
+    },
+    {
+      "name": "ui-lib",
+      "path": "packages/ui-lib",
+    },
+    {
+      "name": "icons",
+      "path": "packages/icons",
+    },
+    {
+      "name": "openapi",
+      "path": "packages/openapi",
+    },
+    {
+      "name": "root",
+      "path": ".",
+    },
+  ],
+  "extensions": {
+    "recommendations": ["oxc.oxc-vscode"],
+  },
+  "settings": {
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "oxc.oxc-vscode",
+    "editor.codeActionsOnSave": {
+      "source.fixAll.oxc": "explicit",
+    },
+    "cSpell.words": [
+      "combobox",
+      "DATEPICKEROPTIONS",
+      "glideapps",
+      "Gridlines",
+      "INPUTOPTIONS",
+      "jschardet",
+      "overscan",
+      "Qrcode",
+      "sharedb",
+      "Sqls",
+      "tada",
+      "Table",
+      "thumbsdown",
+      "thumbsup",
+      "Trgm",
+      "tsvector",
+      "univer",
+      "Univer",
+      "univerjs",
+      "zustand",
+    ],
+  },
+}

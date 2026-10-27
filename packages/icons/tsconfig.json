@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react",
+    "target": "esnext",
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "module": "esnext",
+    "noEmit": false,
+    "incremental": true,
+    "composite": true,
+    "moduleResolution": "bundler",
+    "esModuleInterop": true
+  },
+  "exclude": ["**/node_modules", "**/.*/", "dist", "build"],
+  "include": ["./src"]
+}
