@@ -12,6 +12,10 @@ import { buildSync } from 'esbuild';
 // Tests favor determinism over connection reuse.
 http.globalAgent = new http.Agent({ keepAlive: false });
 
+// Test suites boot modules without an installed license file; enforcement is
+// covered by dedicated license tests. Production defaults to LICENSE_ENFORCE=true.
+process.env.LICENSE_ENFORCE = process.env.LICENSE_ENFORCE ?? 'false';
+
 const require = createRequire(import.meta.url);
 const bufferModule = require('node:buffer') as Record<string, unknown>;
 bufferModule['SlowBuffer'] ??= bufferModule['Buffer'] ?? NodeBuffer;

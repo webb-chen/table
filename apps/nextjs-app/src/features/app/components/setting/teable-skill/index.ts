@@ -1,2 +1,2 @@
-export { TableSkillContent } from './TableSkillContent';
-export { TableSkillSection } from './TableSkillSection';
+export { TableSkillContent } from "./TableSkillContent";
+export { TableSkillSection } from "./TableSkillSection";

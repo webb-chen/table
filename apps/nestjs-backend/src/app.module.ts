@@ -25,6 +25,7 @@ import { ExportOpenApiModule } from './features/export/open-api/export-open-api.
 import { FieldOpenApiModule } from './features/field/open-api/field-open-api.module';
 import { GoogleSheetImportModule } from './features/google-sheet-import/google-sheet-import.module';
 import { HealthModule } from './features/health/health.module';
+import { LicenseModule } from './features/license/license.module';
 import { ImportOpenApiModule } from './features/import/open-api/import-open-api.module';
 import { IntegrityModule } from './features/integrity/integrity.module';
 import { InvitationModule } from './features/invitation/invitation.module';
@@ -70,6 +71,7 @@ export const appModules = {
     MailSenderOpenApiModule,
     MailSenderMergeModule,
     HealthModule,
+    LicenseModule,
     NextModule,
     FieldOpenApiModule,
     TemplateOpenApiModule,

@@ -1919,5 +1919,23 @@
         "description": "Help us measure how well our ads and promotions work."
       }
     }
+  },
+  "license": {
+    "validTitle": "License is valid",
+    "checking": "Checking license…",
+    "checkingDescription": "Verifying the offline license file.",
+    "description": "Upload a license file issued by the Unified License Platform to continue.",
+    "product": "Product",
+    "customer": "Customer",
+    "expireTime": "Expires at",
+    "permanent": "Perpetual",
+    "machineCode": "Machine code",
+    "networkError": "Unable to reach the license service. Check the server and try again.",
+    "uploadLabel": "License file",
+    "uploadHint": "Only .lic files issued by the Unified License Platform are accepted. The file is verified before it replaces the current license.",
+    "recheck": "Re-check license",
+    "enter": "Enter workspace",
+    "required": "License required",
+    "uploadFailed": "License upload failed"
   }
 }

@@ -1,39 +1,36 @@
 #!/usr/bin/env node
-
 import { spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import path from 'node:path';
 
-const command = process.argv[2];
-
-// `generate` only reads the schema to emit the client — it never connects to the
-// database, so it must work without a url. Every other command (migrate, db push,
-// studio, …) talks to a live database and requires one.
-const requiresDatabaseUrl = command !== 'generate';
-
-const dataDatabaseUrl =
+const metaDatabaseUrl =
   process.env.PRISMA_META_DATABASE_URL ??
   process.env.PRISMA_DATABASE_URL ??
   process.env.DATABASE_URL;
 
-if (requiresDatabaseUrl && !dataDatabaseUrl) {
-  console.error(
-    'Missing data database url (PRISMA_META_DATABASE_URL, PRISMA_DATABASE_URL, DATABASE_URL)'
-  );
-  process.exit(1);
-}
-
-// Sonar S4036 (reported on the command-name argument): developer/CLI script on a trusted machine; the executable is resolved through PATH by design
-const result = spawnSync(
-  'pnpm', // NOSONAR javascript:S4036 -- executable resolved through PATH by design (see above)
-  ['prisma', ...process.argv.slice(2)],
-  {
-    stdio: 'inherit',
-    env: {
+const extraEnv = metaDatabaseUrl
+  ? {
       ...process.env,
-      PRISMA_DATABASE_URL: dataDatabaseUrl,
-    },
+      PRISMA_DATABASE_URL: metaDatabaseUrl,
+    }
+  : process.env;
+
+// Prefer the workspace-local Prisma CLI so runtime never depends on pnpm/corepack
+// (corepack tries to fetch the pnpm binary over the network, which hangs offline).
+const localPrismaBin = path.resolve(process.cwd(), 'node_modules/.bin/prisma');
+const args = process.argv.slice(2);
+
+let result;
+if (existsSync(localPrismaBin)) {
+  // Sonar S4036: fixed workspace-relative path, not resolved through PATH.
+  result = spawnSync(localPrismaBin, args, { stdio: 'inherit', env: extraEnv });
+} else {
+  result = spawnSync('pnpm', ['prisma', ...args], {
+    stdio: 'inherit',
+    env: extraEnv,
     shell: process.platform === 'win32',
-  }
-);
+  });
+}
 
 if (result.error) {
   throw result.error;

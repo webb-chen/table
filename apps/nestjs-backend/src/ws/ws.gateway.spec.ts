@@ -5,6 +5,7 @@ import type { TestingModule } from '@nestjs/testing';
 import { Test } from '@nestjs/testing';
 import type { Mock } from 'vitest';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { LicenseService } from '../features/license/license.service';
 import { ShareDbService } from '../share-db/share-db.service';
 import { WsGateway } from './ws.gateway';
 
@@ -80,6 +81,10 @@ describe('WsGateway', () => {
         {
           provide: HttpAdapterHost,
           useValue: mockHttpAdapterHost,
+        },
+        {
+          provide: LicenseService,
+          useValue: { status: () => ({ valid: true, code: 'ok' }) },
         },
       ],
     }).compile();

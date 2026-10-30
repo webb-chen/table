@@ -1916,5 +1916,23 @@
         "description": "帮助我们衡量广告和推广的效果。"
       }
     }
+  },
+  "license": {
+    "validTitle": "授权有效",
+    "checking": "正在检测授权…",
+    "checkingDescription": "正在校验离线授权文件。",
+    "description": "请上传统一授权平台签发的授权文件后继续使用。",
+    "product": "产品",
+    "customer": "客户",
+    "expireTime": "到期时间",
+    "permanent": "永久授权",
+    "machineCode": "机器码",
+    "networkError": "无法连接授权服务，请检查服务器后重试。",
+    "uploadLabel": "授权文件",
+    "uploadHint": "仅接受统一授权平台签发的 .lic 文件；系统会先校验，通过后才会替换当前授权。",
+    "recheck": "重新检测",
+    "enter": "进入工作区",
+    "required": "需要授权",
+    "uploadFailed": "授权文件上传失败"
   }
 }

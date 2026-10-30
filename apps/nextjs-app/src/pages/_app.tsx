@@ -14,6 +14,7 @@ import { Guide } from '@/components/Guide';
 import { GoogleAnalytics, MetaPixel, PostHog, Umami } from '@/components/Metrics';
 import RouterProgressBar from '@/components/RouterProgress';
 import { SideBarScript } from '@/features/app/components/sidebar/SideBarScript';
+import { LicenseGate } from '@/features/license/LicenseGate';
 import { useMobileServiceWorker } from '@/features/app/hooks/useMobileServiceWorker';
 import { HttpErrorPage } from '@/features/system/pages';
 import type { IServerEnv } from '@/lib/server-env';
@@ -100,13 +101,15 @@ const MyApp = (appProps: AppPropsWithLayout) => {
           }}
         />
         {/* Workaround for https://github.com/vercel/next.js/issues/8592 */}
-        {httpError && [402, 403].includes(httpError.status) ? (
-          <HttpErrorPage httpError={httpError} />
-        ) : (
-          getLayout(<Component {...pageProps} err={nextJsError || pageError} />, {
-            ...pageProps,
-          })
-        )}
+        <LicenseGate>
+          {httpError && [402, 403].includes(httpError.status) ? (
+            <HttpErrorPage httpError={httpError} />
+          ) : (
+            getLayout(<Component {...pageProps} err={nextJsError || pageError} />, {
+              ...pageProps,
+            })
+          )}
+        </LicenseGate>
       </AppProviders>
       {user && <Guide user={user} />}
       <RouterProgressBar />

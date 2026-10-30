@@ -81,6 +81,21 @@ export const createAxios = () => {
       // Any status codes that falls outside the range of 2xx cause this function to trigger
       const { data, status } = error?.response || {};
 
+      // Offline license invalid: the backend gate returns 403/503 with a
+      // unified `license_*` code. Send the user to the license page so they can
+      // upload a new license file instead of seeing bare request errors.
+      const licenseCode =
+        data && typeof data === 'object' ? (data as { code?: unknown }).code : undefined;
+      if (
+        (status === 403 || status === 503) &&
+        typeof licenseCode === 'string' &&
+        licenseCode.startsWith('license_') &&
+        typeof window !== 'undefined' &&
+        !window.location.pathname.startsWith('/license')
+      ) {
+        window.location.assign('/license');
+      }
+
       // Detect network errors and use NETWORK_ERROR code instead of INTERNAL_SERVER_ERROR
       if (isNetworkError(error)) {
         throw new HttpError(

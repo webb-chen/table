@@ -14,6 +14,8 @@ import { AppModule } from './app.module';
 import type { IBaseConfig } from './configs/base.config';
 import type { ISecurityWebConfig, IApiDocConfig } from './configs/bootstrap.config';
 import { GlobalExceptionFilter } from './filter/global-exception.filter';
+import { createLicenseMiddleware } from './features/license/license.middleware';
+import { LicenseService } from './features/license/license.service';
 import { setupSwagger } from './swagger';
 import type { IClsStore } from './types/cls';
 import { nestModuleIdOptions, nestRouteDiagnosticsOptions } from './utils/nest-module-id-options';
@@ -38,6 +40,10 @@ export async function setUpAppMiddleware(app: INestApplication, configService: C
   const apiDocConfig = configService.get<IApiDocConfig>('apiDoc');
   const securityWebConfig = configService.get<ISecurityWebConfig>('security.web');
   const baseConfig = configService.get<IBaseConfig>('base');
+
+  // Offline license gate (ULP v1). Registered as plain Express middleware so it
+  // also covers the SockJS handshake and stays ahead of all Nest controllers.
+  app.use(createLicenseMiddleware(app.get(LicenseService)));
 
   // req.ip must resolve the real client IP from X-Forwarded-For (audit logs,
   // per-IP rate limiting); see parseTrustProxy for the BACKEND_TRUST_PROXY contract.

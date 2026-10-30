@@ -6,6 +6,7 @@ import { Injectable, Logger, Optional } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
 import type { Request } from 'express';
 import sockjs from 'sockjs';
+import { LicenseService } from '../features/license/license.service';
 import { recordCompressionNegotiation } from '../share-db/metrics/compression-metrics';
 import { RealtimeMetricsService } from '../share-db/metrics/realtime-metrics.service';
 import { ShareDbService } from '../share-db/share-db.service';
@@ -28,6 +29,7 @@ export class WsGateway implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly shareDb: ShareDbService,
     private readonly httpAdapterHost: HttpAdapterHost,
+    private readonly licenseService: LicenseService,
     @Optional() private readonly realtimeMetrics?: RealtimeMetricsService
   ) {}
 
@@ -53,6 +55,14 @@ export class WsGateway implements OnModuleInit, OnModuleDestroy {
 
   private readonly handleConnection = (conn: sockjs.Connection) => {
     if (!conn) return;
+
+    // Realtime collaboration is a business capability: reject the connection
+    // when the license is invalid instead of letting it bypass the HTTP gate.
+    const license = this.licenseService.status();
+    if (!license.valid) {
+      conn.close(1008, `license_error:${license.code}`);
+      return;
+    }
 
     this.activeConnections.add(conn);
     this.realtimeMetrics?.recordConnectionOpen();
